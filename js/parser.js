@@ -223,6 +223,8 @@
     total.blockedIP = [];
     total.monitoredIP = [];
     total.totalCount = 0;
+    total.illegalURL = 0;
+    total.notAllowedURL = 0;
     total.getCount = 0;
     total.postCount = 0;
     total.patchCount = 0;
@@ -383,7 +385,7 @@
     analysisTotalObject (total.ipCount, 'IP分析', doBarChart);
     analysisTotalObject (total.browserCount, '瀏覽器分析', doPieChart);
     analysisTotalObject (total.osCount, '作業系統分析', doPieChart);
-    //showTime ();
+    showTime ();
     //console.log (JSON.stringify(total))
     console.log (total);
   }
@@ -481,6 +483,8 @@
           var checkInjection = /Possible SQL injection/g.exec (contentArray[i]);
           if (checkInjection !== null)
             rawData.injection = true;
+          else
+            console.log(contentArray[i]);
         }
         if (contentArray[i].startsWith ("MONITORED")) {
           rawData.monitored = true;
@@ -531,26 +535,35 @@
       rawData.url = contentArray[8];
       for (var i = 9; i < contentArray.length; i++) {
         if (contentArray[i].startsWith ('BLOCKED')) {
-          rawData.blocked = true;
-          var check = reBlockedIP.exec (contentArray[i]);
-          if (check !== null)
-            rawData.blockedIP = check[1];
           var checkInjection = /Possible SQL injection/g.exec (contentArray[i]);
-          if (checkInjection !== null)
-            rawData.injection = true;
           var checkAuth = /accessing\/running/g.exec (contentArray[i]);
           var checkAuth2 = /not allowed in filename/g.exec (contentArray[i]);
-          if (checkAuth !== null || checkAuth2 !== null)
-            rawData.unauth = true;
           var checkPollution = /Parameter pollution in querystring/g.exec (contentArray[i]);
-          if (checkPollution !== null)
-            rawData.pollution = true;
           var checkCrawler = /User Agent is switching too much on this IP address/g.exec (contentArray[i]);
-          if (checkCrawler !== null)
-            rawData.crawler = true;
           var cookiePollution = /Parameter pollution in cookie/g.exec (contentArray[i]);
-          if (cookiePollution)
+          var checkURL = /URL not in allowed list/g.exec(contentArray[i]);
+          var checkIllegalURL = /not allowed in URL/g.exec(contentArray[i]);
+          var checkIllegalURL2 = /not allowed in querystring/g.exec(contentArray[i]);
+          var check = reBlockedIP.exec (contentArray[i]);
+          rawData.blocked = true;
+          if (check !== null)
+            rawData.blockedIP = check[1];
+          else if (checkInjection !== null)
+            rawData.injection = true;
+          else if (checkAuth !== null || checkAuth2 !== null)
+            rawData.unauth = true;
+          else if (checkPollution !== null)
             rawData.pollution = true;
+          else if (checkCrawler !== null)
+            rawData.crawler = true;
+          else if (cookiePollution)
+            rawData.pollution = true;
+          else if (checkURL)
+            rawData.notAllowedURL = true;
+          else if (checkIllegalURL || checkIllegalURL2)
+            rawData.illegalURL = true;
+          else
+            console.log(contentArray[i]);
 
         }
         if (contentArray[i].startsWith ('ALERT')) {
@@ -592,8 +605,12 @@
         //traffic.push ({IP: rawData.clientIP});
         //traffic.push ({Host: rawData.host});
         ++total.totalCount;
+        if (rawData.illegalURL)
+          ++total.illegalURL
+        if (rawData.notAllowedURL)
+          ++total.notAllowedURL;
         if (rawData.crawler)
-          ++total.crawler
+          ++total.crawler;
         if (rawData.traversal)
           ++total.traversal;
         if (rawData.abuse)
@@ -1014,17 +1031,27 @@
   }
 
   function analysisType () {
-    var bonus = 1;
-    var dir = total.traversal + bonus;
-    var dos = total.dos + bonus;
-    var inj = total.injection + bonus;
-    var cra = total.crawler + bonus;
-    var abu = total.abuse + bonus;
-    var label = ['目錄遍歷', '阻斷服務', '隱碼注入', '網路爬蟲', '模糊測試'];
-    var data = [{value: dir, name: '目錄遍歷'}, {value: dos, name: '阻斷服務'}, {value: inj, name: '隱碼注入'},
-      {value: cra, name: '網路爬蟲'}, {value: abu, name: '模糊測試'}];
+    var dir = total.traversal;
+    var dos = total.dos;
+    var inj = total.injection;
+    var cra = total.crawler;
+    var abu = total.abuse;
+    var ill = total.illegalURL;
+    var not = total.notAllowedURL;
+    var _data = [dir, dos, inj, cra, abu, ill, not]
+    var _label = ['目錄遍歷', '阻斷服務', '隱碼注入', '網路爬蟲', '模糊測試', '非法網址', '越權訪問'];
+    label = [];
+    var data = [];
+    for(var i=0;i<_data.length;i++){
+      if(_data[i] > 0){
+        data.push({value:_data[i], name:_label[i]});
+        label.push(_label[i]);
+      }
+      
+    }
     var _id = Math.random ();
     createBlock (_id);
+    console.log(getPie2Option('攻擊類型', label, data));
     createChart (_id, getPie2Option('攻擊類型', label, data));
   }
 
